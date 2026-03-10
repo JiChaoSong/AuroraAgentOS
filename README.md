@@ -141,7 +141,10 @@ curl -X POST "http://localhost:8000/agent/run?goal=检查%20Java%20版本"
   },
   "all_attempts": []
 }
+
 ```
+![run_example.png](https://github.com/JiChaoSong/AuroraAgentOS/docs/assets/run_example.png)
+
 6. 查看记忆
 ```txt
 端点：GET /api/memory

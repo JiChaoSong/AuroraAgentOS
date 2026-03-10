@@ -9,41 +9,17 @@
 --------------------------------------
 """
 # aurora/reasoner/reasoner.py
-from aurora.llm.llm_client import llm_call
 import json
+import re
+from aurora.llm.llm_client import llm_call
 
 class Reasoner:
     """逻辑推理器：分析目标、计划、结果，提供深度推理"""
 
     async def reason(self, goal: str, context: dict) -> dict:
-        """
-        参数 context 可包含：
-        - plan: list, 当前计划（如果有）
-        - result: list, 执行结果（如果有）
-        - reflection: str, 上一轮反思（如果有）
-        - world_state: dict, 世界模型状态（预留）
-        返回推理结论，格式示例：
-        {
-            "logical_flaws": [...],          # 逻辑缺陷列表
-            "suggestions": [...],             # 改进建议
-            "causal_analysis": str,            # 因果分析
-            "confidence": float                # 置信度
-        }
-        """
-        # 构造提示词，要求 LLM 进行结构化推理
         prompt = self._build_prompt(goal, context)
         response = llm_call(prompt)
-        # 解析 JSON（需容错）
-        try:
-            result = json.loads(response)
-        except:
-            result = {
-                "logical_flaws": [],
-                "suggestions": ["无法解析推理结果，请检查 LLM 输出"],
-                "causal_analysis": "",
-                "confidence": 0.0
-            }
-        return result
+        return self._parse_response(response)
 
     def _build_prompt(self, goal: str, context: dict) -> str:
         prompt = f"""You are an AI reasoner. Perform deep logical reasoning and causal analysis based on the given goal and context.
@@ -68,3 +44,38 @@ Analyze the situation and output a JSON object with the following fields:
 Only output valid JSON, no other text.
 """
         return prompt
+
+    def _parse_response(self, response: str) -> dict:
+        # 尝试提取 JSON（支持 Markdown 代码块和直接 JSON）
+        json_str = self._extract_json(response)
+        if json_str:
+            try:
+                return json.loads(json_str)
+            except json.JSONDecodeError:
+                pass
+
+        # 解析失败时返回一个干净的默认结构，将原始响应放入 causal_analysis 便于调试
+        return {
+            "logical_flaws": [],
+            "suggestions": [],
+            "causal_analysis": f"Failed to parse LLM response. Raw response: {response[:200]}...",
+            "confidence": 0.0
+        }
+
+    def _extract_json(self, text: str) -> str | None:
+        """从文本中提取 JSON 字符串（去除 Markdown 代码块标记和前后空白）"""
+        # 尝试匹配 ```json ... ``` 或 ``` ... ```
+        pattern = r'```(?:json)?\s*([\s\S]*?)\s*```'
+        match = re.search(pattern, text)
+        if match:
+            return match.group(1).strip()
+        # 如果没有代码块，尝试直接解析（去除首尾空白）
+        stripped = text.strip()
+        if stripped.startswith('{') and stripped.endswith('}'):
+            return stripped
+        # 最后尝试查找第一个 { 和最后一个 } 之间的内容（忽略前后文本）
+        start = text.find('{')
+        end = text.rfind('}')
+        if start != -1 and end != -1 and end > start:
+            return text[start:end+1].strip()
+        return None
