@@ -143,7 +143,7 @@ curl -X POST "http://localhost:8000/agent/run?goal=检查%20Java%20版本"
 }
 
 ```
-![run_example.png](https://github.com/JiChaoSong/AuroraAgentOS/docs/assets/run_example.png)
+![run_example.png](https://github.com/JiChaoSong/AuroraAgentOS/blob/main/docs/assets/run_example.png?raw=true)
 
 6. 查看记忆
 ```txt
