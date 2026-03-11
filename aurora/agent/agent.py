@@ -10,12 +10,13 @@
 """
 class Agent:
 
-    def __init__(self, planner, executor, memory, reflector, reasoner, max_retries = 3):
+    def __init__(self, planner, executor, memory, reflector, reasoner, world_graph = None, max_retries = 3):
         self.planner = planner
         self.executor = executor
         self.memory = memory
         self.reflector = reflector
         self.reasoner = reasoner
+        self.world_graph = world_graph
         self.max_retries = max_retries
 
     async def run(self, goal: str):
@@ -29,16 +30,24 @@ class Agent:
         reflection = None
         causal_analysis = None
 
+        # 构建世界模型上下文（如果存在）
+        world_context = {}
+        if self.world_graph:
+            # 可以查询一些初始信息，如当前文件列表等，简化起见不在此处查询
+            world_context["graph"] = self.world_graph
+
         while attempt < self.max_retries:
             attempt += 1
             print(f"Attempt {attempt} for goal: {goal}")
 
-            # 1. 规划
-            plan = await self.planner.create_plan(goal, context=context)
+
+            # 规划时传入世界模型
+            plan = await self.planner.create_plan(goal, context=context, world_graph=self.world_graph)
+
             print("Plan:", plan)
 
             # 2. 规划后推理（可选，此处仅打印缺陷，不修改计划）
-            plan_context = {"plan": plan}
+            plan_context = {"plan": plan, "world": world_context}
             reason_result = await self.reasoner.reason(goal, plan_context)
             if reason_result.get("logical_flaws"):
                 print("Logical flaws detected:", reason_result["logical_flaws"])
@@ -49,14 +58,15 @@ class Agent:
             print("Execution result:", result)
 
             # 4. 执行后推理（因果分析）
-            exec_context = {"plan": plan, "result": result}
+            exec_context = {"plan": plan, "result": result, "world": world_context}
             causal_analysis = await self.reasoner.reason(goal, exec_context)
             print("Causal analysis:", causal_analysis)
 
             # 5. 反思（结合因果分析）
             reflection = await self.reflector.reflect(
                 goal, plan, result,
-                causal_analysis=causal_analysis.get("causal_analysis", "")
+                causal_analysis=causal_analysis.get("causal_analysis", ""),
+                world_graph=self.world_graph
             )
             print("Reflection:", reflection)
 
@@ -88,6 +98,7 @@ class Agent:
 
         # 达到最大重试次数
         final_reflection = {"completed": False, "reflection": "Max retries reached, goal not achieved."}
+
         return self._build_final_output(
             goal, attempt, result, final_reflection, all_results, causal_analysis
         )

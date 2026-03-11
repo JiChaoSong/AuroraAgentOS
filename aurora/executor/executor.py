@@ -8,34 +8,45 @@
     Desc  :     
 --------------------------------------
 """
-from aurora.tools.shell_tool import run_shell
-from aurora.tools.python_tool import run_python
-from aurora.tools.http_tool import run_http
+from aurora.tools import shell_tool, python_tool, http_tool, get_tool
+import logging
 
+logger = logging.getLogger(__name__)
 
 class Executor:
 
+    def __init__(self, world_updater=None):
+        self.world_updater = world_updater
+
     async def execute(self, plan):
-
         results = []
-
         for step in plan:
 
-            if "shell:" in step:
-                cmd = step.replace("shell:", "")
-                result = run_shell(cmd)
+            # 解析步骤格式为 "tool_name: arguments"
+            if ":" not in step:
+                results.append(f"Invalid step format: {step}")
+                continue
+            tool_name, arg = step.split(":", 1)
+            tool_name = tool_name.strip()
+            arg = arg.strip()
 
-            elif "python:" in step:
-                code = step.replace("python:", "")
-                result = run_python(code)
+            tool_func = get_tool(tool_name)
+            if not tool_func:
+                results.append(f"Unknown tool: {tool_name}")
+                continue
 
-            elif "http:" in step:
-                url = step.replace("http:", "")
-                result = run_http(url)
+            try:
+                result = tool_func(arg)  # 所有工具函数统一接受字符串参数
+                # 世界模型更新
+                if self.world_updater:
+                    await self.world_updater.update(tool_name, arg, result)
 
-            else:
-                result = f"Skipped step: {step}"
+                results.append(result)
 
-            results.append(result)
-
+            except Exception as e:
+                error_result = {"error": str(e)}
+                results.append({"error": str(e)})
+                # 即使工具执行异常，也可尝试更新世界模型（记录失败）
+                if self.world_updater:
+                    await self.world_updater.update(tool_name, arg, error_result)
         return results

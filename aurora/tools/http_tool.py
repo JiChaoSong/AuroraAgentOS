@@ -10,7 +10,10 @@
 """
 import requests
 
+from aurora.tools import register_tool
 
+
+@register_tool("http")
 def run_http(url):
 
     try:

@@ -33,7 +33,9 @@ Goal: {goal}
             prompt += f"Execution result: {context['result']}\n"
         if "reflection" in context:
             prompt += f"Previous reflection: {context['reflection']}\n"
-
+        if "world" in context:
+            # 可以添加世界模型摘要
+            prompt += f"World state summary: {context['world']}\n"
         prompt += """
 Analyze the situation and output a JSON object with the following fields:
 - "logical_flaws": list of strings, any logical issues in the plan or execution (empty if none)
